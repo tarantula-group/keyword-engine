@@ -1,0 +1,11 @@
+{
+  "defaultEnv": "local",
+  "local": {
+    "driver": "mysql",
+    "host": "db",
+    "user": "tarantula",
+    "password": "tarantula",
+    "multipleStatements": true,
+    "database": "tarantula"
+  }
+}

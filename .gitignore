@@ -1,0 +1,8 @@
+node_modules
+npm-debug.log
+secrets
+.idea
+.DS_Store
+.client_secret.json
+/client_secret.json
+/coverage
