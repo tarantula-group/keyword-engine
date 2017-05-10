@@ -20,7 +20,8 @@ function removeStopWords(keywordObject, stopWords) {
 
     return {
         'keyword': keywordWithoutStopWords,
-        'originalKeywordId': keywordObject.originalKeywordId
+        'originalKeywordId': keywordObject.originalKeywordId,
+        'id': keywordObject.id,
     }
 }
 
@@ -32,10 +33,11 @@ function filterStopWordsInKeywordsList(keywordsList, stopWords) {
 
 // -- Product filter
 
-function doesKeywordExistAsProduct (splitKeywordArray, clientId) {
+function doesKeywordExistAsProduct(keywordObject, clientId) {
 
     let keywordsQuery = '';
     let searchOr = '';
+    let splitKeywordArray = keywordObject.keyword;
 
     splitKeywordArray.forEach((singleWordInKeyword) => {
         keywordsQuery += ` ${searchOr} name LIKE '%${singleWordInKeyword}%' OR description LIKE '%${singleWordInKeyword}%'`;
@@ -46,16 +48,36 @@ function doesKeywordExistAsProduct (splitKeywordArray, clientId) {
 
     return knex.raw(databaseQuery)
         .then((databaseSearchResult) => {
-            return databaseSearchResult[0].length >= BUSINESS.minSearchResultsFilter
+            return databaseSearchResult[0]
         })
-}
+        .tap(function (searchResults) {
+            searchResults.forEach(function(product){
+                knex.transaction(function (trx) {
+                    knex.insert({
+                        productId: product.id,
+                        originalKeywordId: keywordObject.originalKeywordId,
+                        clientId: clientId,
+                        businessFilteredKeywordId: keywordObject.id
+                    })
+                        .into('business_filtered_keywords_products')
+                        .transacting(trx)
+                        .then(trx.commit)
+                        .catch(trx.rollback);
+                });
+            })
+
+        })
+        .then(function (searchResults) {
+            return searchResults.length >= BUSINESS.minSearchResultsFilter;
+        });
+};
 
 function filterKeywordListByProductList(keywordsList, clientId) {
 
     let searchProductByKeyword = [];
 
     keywordsList.forEach((keywordObject) => {
-        searchProductByKeyword.push(doesKeywordExistAsProduct(keywordObject.keyword, clientId));
+        searchProductByKeyword.push(doesKeywordExistAsProduct(keywordObject, clientId));
     });
 
 
@@ -84,7 +106,7 @@ function getStopWords(clientId) {
 }
 
 function getKeywords(clientId) {
-    return knex.select('keyword', 'originalKeywordId').from('business_filtered_keywords').where('clientId', '=', clientId);
+    return knex.select('id', 'keyword', 'originalKeywordId').from('business_filtered_keywords').where('clientId', '=', clientId);
 }
 
 function saveKeywords(keywordsObjects) {
@@ -114,7 +136,7 @@ exports.applyProductFilter = function (clientId) {
         let filteredKeywords = filterStopWordsInKeywordsList(keywordsObject, stopWordsArray);
 
         return filterKeywordListByProductList(filteredKeywords, clientId)
-            .then((keywordsFilteredByProducts ) => {
+            .then((keywordsFilteredByProducts) => {
                 let result = formatFilteredKeywordsForDatabase(keywordsFilteredByProducts, clientId);
 
                 return saveKeywords(result)
