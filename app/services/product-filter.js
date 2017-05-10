@@ -62,7 +62,7 @@ function doesKeywordExistAsProduct(keywordObject, clientId) {
                         .into('business_filtered_keywords_products')
                         .transacting(trx)
                         .then(trx.commit)
-                        .catch(trx.rollback);
+                        .catch(trx.rollback);//hola
                 });
             })
 
